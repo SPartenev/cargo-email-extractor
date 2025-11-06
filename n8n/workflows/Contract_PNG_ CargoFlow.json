@@ -1,0 +1,1417 @@
+{
+  "name": "Contract_PNG_ CargoFlow",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    id,\n    file_path,\n    email_id,\n    attachment_id,\n    file_metadata->>'page_number' as page_number,\n    file_metadata->>'total_pages' as total_pages\nFROM processing_queue\nWHERE original_document = '{{ $json.payload.original_document }}'\nAND attachment_id = {{ $json.payload.attachment_id }}\nAND file_type = 'image'\nAND group_processing_status = 'ready_for_group'\nORDER BY (file_metadata->>'page_number')::int;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1696,
+        -240
+      ],
+      "id": "951104c2-7e69-41e9-a127-50e54ec90b11",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.file_path }}"
+      },
+      "name": "Read All Files1",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        -240
+      ],
+      "id": "2a34994e-e737-4b01-a9a0-f5409d8a1682"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 16384
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2576,
+        96
+      ],
+      "id": "e70d422a-3173-4b5c-a827-15ccbd0cd3c9",
+      "name": "Google Gemini Chat Model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IPyd7gWq10cQMAOO",
+          "name": "Invoice_Email"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data }}",
+        "options": {
+          "systemMessage": "## Role\nAct as an intelligent document classifier for individual pages of business and transport documents.\n\n## Task\nAnalyze EACH PAGE separately and determine:\n1. Document category for EACH page\n2. Contract number extraction (if applicable)\n3. Page-specific information\n\n## Categories (Pick Only One per page)\n- contract — договор\n- contract_amendment — изменение на договор  \n- contract_termination — прекратяване на договор\n- contract_extension — продължаване на договор\n- service_agreement — споразумение за услуги\n- framework_agreement — рамково споразумение\n- cmr — CMR (международен товарителски документ)\n- protocol — протокол\n- annex — анекс\n- insurance — застраховка\n- invoice — фактура\n- credit_note — кредитно известие\n- other — друго\n\n## Contract Number Extraction\n**IMPORTANT:** Always search for contract numbers in the document text. Look for patterns like:\n- \\\"50xxxxxxxxx\\\" (10-11 цифри, започва с 50)\n- \\\"20xxxxxxxxx\\\" (10-11 цифри, започва с 20)\n- \\\"Договор № 50xxxxxxxxx\\\" / \\\"Contract No. 20xxxxxxxxx\\\"\n- \\\"№ 50xxxxxxxxx\\\" / \\\"No. 20xxxxxxxxx\\\"\n- \\\"Договорен номер 50xxxxxxxxx\\\" / \\\"Contract number 20xxxxxxxxx\\\"\n\n**Extract the FULL contract number including any prefixes/suffixes.**\n\n## Output Format\nReturn an ARRAY with one object for each page:\n[\n  {\n    \\\"page_number\\\": 1,\n    \\\"category\\\": \\\"invoice\\\",\n    \\\"confidence\\\": 0.95,\n    \\\"summary\\\": \\\"Фактура за транспортни услуги\\\",\n    \\\"contract_number\\\": \\\"50251006834\\\",\n    \\\"contract_number_confidence\\\": 0.90\n  },\n  {\n    \\\"page_number\\\": 2,\n    \\\"category\\\": \\\"cmr\\\",\n    \\\"confidence\\\": 0.98,\n    \\\"summary\\\": \\\"CMR за международен транспорт\\\",\n    \\\"contract_number\\\": \\\"50251006834\\\",\n    \\\"contract_number_confidence\\\": 0.95\n  },\n  {\n    \\\"page_number\\\": 3,\n    \\\"category\\\": \\\"cmr\\\",\n    \\\"confidence\\\": 0.98,\n    \\\"summary\\\": \\\"CMR за международен транспорт\\\",\n    \\\"contract_number\\\": \\\"50251006834\\\",\n    \\\"contract_number_confidence\\\": 0.95\n  }\n]\n\n**IMPORTANT:** \n- Analyze each page individually\n- Each page gets its own category\n- CMR pages are analyzed separately (even if they look similar)\n- Contract number extraction is MANDATORY for each page\n- Use the SAME contract number extraction logic as before\"\n}",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        -80
+      ],
+      "id": "9516f837-92c5-4895-b787-52a703d47659",
+      "name": "Category"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {
+          "includeBinaries": true
+        }
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        -240
+      ],
+      "id": "b7a90945-be63-4415-a2e7-24fc890b7313",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response\nconst aiOutput = $json.output;\n\n// Премахни markdown ако има\nconst cleanJson = aiOutput.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nconst parsed = JSON.parse(cleanJson);\n\n// Вземи данните от trigger\nconst triggerData = $('Postgres Trigger Contract PNG').first().json.payload;\n\n// Обработваме всеки page отделно (AI вече връща масив от страници)\nconst results = [];\nparsed.forEach((pageData) => {\n  results.push({\n    json: {\n      page_number: pageData.page_number,\n      category: pageData.category,\n      confidence: pageData.confidence,\n      summary: pageData.summary,\n      contract_number: pageData.contract_number,\n      contract_number_confidence: pageData.contract_number_confidence,\n      attachment_id: triggerData.attachment_id,\n      email_id: triggerData.email_id,\n      original_document: triggerData.original_document,\n      total_pages: triggerData.file_metadata.total_pages\n    }\n  });\n});\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2912,
+        -80
+      ],
+      "id": "83d8cd3a-f114-48cc-8c6b-832aec20e237",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.output }} ",
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"general_data\": {\n    \"Получател\": \"\",\n    \"ДДС получател\": \"\",\n    \"Адрес_клиент\": \"\",\n    \"Доставчик\": \"\",\n    \"ДДС издател\": \"\",\n    \"Адрес_доставчик\": \"\",\n    \"email_подател\": \"\",\n    \"IBAN\": \"\",\n    \"ИН\": \"\",\n    \"Дата на издаване\": \"\",\n    \"Фактура номер\": \"\",\n    \"Сума без ДДС\": \"\",\n    \"ДДС\": \"\",\n    \"Сума за плащане\": \"\",\n    \"валута\": \"\"\n  },\n  \"line_items\": [\n    {\n      \n      \"стоки и услуги\": \"\"\n      \n    }\n  ]\n}\n",
+        "options": {
+          "systemPromptTemplate": "You are an expert extraction algorithm.\nOnly extract relevant information from the text.\nIf you do not know the value of an attribute asked to extract, you may omit the attribute's value."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1,
+      "position": [
+        4576,
+        -256
+      ],
+      "id": "f2371b88-da42-4a4f-9d90-6943375d9d6d",
+      "name": "INVOICE",
+      "alwaysOutputData": false,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Aggregate').item.json.data }}",
+        "options": {
+          "systemMessage": "=## Role\n\nAct as an expert in document data extraction and validation, specializing in processing invoices and related financial documents.\n\n## Task\n\nAnalyze provided text data and extract structured information into two strictly validated **JSON objects**: one for general invoice details and one for itemized product/service data.\n\n## Specifics\n\n- Parse and validate invoice data, ensuring all fields follow defined formatting and logic rules.\n- Include in both JSON objects the following file metadata fields:\n  - `\"име на файл\"` (file name): `{file_name}`\n  - `\"дата на създаване на файл\"` (file creation date): `{upload_date}`\n  - `\"размер на файл (в килобайтове)\"` (file size): `{file_size:.2f}`\n\n## Validation Rules\n\n1. **Missing Data:** Use an empty string (`\"\"`) for missing or non-parsable fields.\n2. **Dates:** Use DD/MM/YYYY format. Reject future dates. Dates must be valid and logical (e.g., issue date ≤ processing date).\n3. **Monetary Values:** Use a period (.) as a decimal separator. Values must be valid numerics.\n4. **Quantities:** Must be strictly positive and non-zero.\n\n## Output Format\n\nRespond with the following two objects:\n\n### JSON Object 1: General Details\nJSON Output Format with field descriptions:\n{\n  \"general_data\": {\n    \"Получател\": \"\", // Recipient company name\n    \"ДДС получател\": \"\", // VAT number of the recipient\n    \"Адрес_клиент\": \"\", // Customer address \n    \"Доставчик\": \"\", // Supplier company name\n    \"ДДС издател\": \"\", // Supplier VAT number\n    \"Адрес_доставчик\": \"\", // Supplier address\n    \"IBAN\": \"\", // Bank account IBAN\n    \"ИН\": \"\", // Identification number (bulstat/egn) of the supplier\n    \"начин на плащане\": \"\", // Payment method\n    \"Дата на издаване\": \"\", // Invoice issue date in DD.MM.YYYY\n    \"Фактура номер\": \"\", // Invoice number\n    \"Сума без ДДС\": \"\", // Subtotal (amount before VAT), numeric with dot separator\n    \"ДДС\": \"\", // VAT amount, numeric\n    \"Сума за плащане\": \"\", // Total amount (incl. VAT), numeric\n    \"валута\": \"\" // Currency used (e.g., BGN, EUR)\n    \n  },\n  \"line_items\": [\n    {\n      \"стоки и услуги\": \"\" // Description of the good or service\n      \n     },\n    // Additional line items if present\n  ]\n}\n\n\nUse the following values:\n\nFile name: {file_name}\n\nUpload date: {upload_date}\n\nFile size: {file_size:.2f}\n\nFile link: https://itservices2017bg.sharepoint.com/:b:/r/Shared%20Documents/Invoice_in/processed_documents/2025/originals/052025/{file_name}\n\nRespond only with the JSON object as described above, no extra text, no explanations. Validate dates, numeric fields, and roles strictly.",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        4240,
+        -256
+      ],
+      "id": "e93d1048-527e-4273-8b47-e785686a2269",
+      "name": "INVOICE3"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 16384
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        4240,
+        -16
+      ],
+      "id": "7ec56e98-bf19-48de-916d-2246aafbe0c5",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YXdTFjfkexvXRKkn",
+          "name": "Teka"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "07399575-5dc5-40ea-9786-c7eeab361a95",
+              "leftValue": "={{ $json.document_category }}",
+              "rightValue": "=invoice",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4000,
+        -240
+      ],
+      "id": "45ae0ed7-5432-41bc-bd12-7f2b2248ead4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        3808,
+        -240
+      ],
+      "id": "d87d162a-aeb5-46f8-893f-b1c8705169bd",
+      "name": "Merge",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4ecd0a44-535a-4dd0-8df7-ab2a92f0fd3f",
+              "name": "email_id",
+              "value": "={{ $json.email_id }}",
+              "type": "number"
+            },
+            {
+              "id": "34dfb5c1-ce4a-4d03-bb6e-eb11adc4ae09",
+              "name": "attachment_name",
+              "value": "={{ $json.original_document }}",
+              "type": "string"
+            },
+            {
+              "id": "fe1f900a-9c78-4e1e-a6a9-36ed5e27200d",
+              "name": "attachment_path",
+              "value": "={{ $('Postgres Trigger Contract PNG').item.json.payload.file_path }}",
+              "type": "string"
+            },
+            {
+              "id": "dae5e07f-abfb-428a-8449-8ab7cf8ffd65",
+              "name": "document_category",
+              "value": "={{ $json.category }}",
+              "type": "string"
+            },
+            {
+              "id": "b131a46a-7275-42db-b69f-a467c9b6effd",
+              "name": "classification_summary",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "131d5d0c-852a-4ae8-aa3d-82af7e490b1b",
+              "name": "total_pages",
+              "value": "={{ $json.total_pages }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3600,
+        -96
+      ],
+      "id": "6e1b51ff-bdfd-432b-b91b-0b4a238f0ae3",
+      "name": "Edit file path"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 16384
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        4592,
+        -16
+      ],
+      "id": "a6d2bd7d-2833-4f3b-a22d-0cec4f6edbab",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DHbJJji54V1vnY7C",
+          "name": "Gemini(PaLM) Api 1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Функция за конвертиране на дата от DD/MM/YYYY към YYYY-MM-DD\nfunction parseDate(dateStr) {\n  if (!dateStr || dateStr === '' || dateStr.trim() === '') return null;\n  \n  const parts = dateStr.split('/');\n  if (parts.length !== 3) return null;\n  \n  const [day, month, year] = parts;\n  \n  // Валидация на датата\n  const d = parseInt(day);\n  const m = parseInt(month);\n  const y = parseInt(year);\n  \n  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;\n  if (d < 1 || d > 31 || m < 1 || m > 12) return null;\n  \n  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;\n}\n\n// Функция за безопасно парсиране на числа\nfunction parseNumber(val) {\n  if (!val || val === '' || val.toString().trim() === '') return null;\n  \n  // Заменяме запетая с точка\n  const cleaned = val.toString().replace(',', '.');\n  const num = parseFloat(cleaned);\n  \n  return isNaN(num) ? null : num;\n}\n\nconst general = $json.output.general_data;\n\nreturn [{\n  json: {\n    recipient_name: general[\"Получател\"] || null,\n    recipient_vat: general[\"ДДС получател\"] || null,\n    supplier_name: general[\"Доставчик\"] || null,\n    supplier_vat: general[\"ДДС издател\"] || null,\n    iban: general[\"IBAN\"] || null,\n    tax_number: general[\"ИН\"] || null,\n    issue_date: parseDate(general[\"Дата на издаване\"]),\n    invoice_number: general[\"Фактура номер\"] || null,\n    vat_amount: parseNumber(general[\"ДДС\"]),\n    total_amount: parseNumber(general[\"Сума за плащане\"]),\n    currency: general[\"валута\"] || null,\n    \n    // Добавяме line_items за евентуално използване\n    line_items: $json.output.line_items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4992,
+        -256
+      ],
+      "id": "e320c12d-15b3-4978-8f33-c7b4c9c068c0",
+      "name": "Format Dates for DB"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "invoice_base",
+          "mode": "list",
+          "cachedResultName": "invoice_base"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_id": "={{ $('Postgres Trigger Contract PNG').item.json.payload.email_id }}",
+            "total_amount": "={{ $json.total_amount }}",
+            "invoice_number": "={{ $json.invoice_number }}",
+            "invoice_date": "={{ $json.issue_date }}",
+            "supplier_name": "={{ $json.supplier_name }}",
+            "supplier_vat": "={{ $json.supplier_vat }}",
+            "customer_name": "={{ $json.recipient_name }}",
+            "customer_vat": "={{ $json.recipient_vat }}",
+            "currency": "={{ $json.currency }}",
+            "iban": "={{ $json.iban }}",
+            "issue_date": "={{ $json.issue_date }}",
+            "supplier_id_number": "={{ $json.tax_number }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "email_id",
+              "displayName": "email_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_date",
+              "displayName": "invoice_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "supplier_name",
+              "displayName": "supplier_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "supplier_vat",
+              "displayName": "supplier_vat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "supplier_address",
+              "displayName": "supplier_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_vat",
+              "displayName": "customer_vat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_address",
+              "displayName": "customer_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "subtotal",
+              "displayName": "subtotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_amount",
+              "displayName": "tax_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_rate",
+              "displayName": "tax_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "total_amount",
+              "displayName": "total_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "original_file_path",
+              "displayName": "original_file_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "extracted_data",
+              "displayName": "extracted_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "validation_status",
+              "displayName": "validation_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "validation_errors",
+              "displayName": "validation_errors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sender_email",
+              "displayName": "sender_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "iban",
+              "displayName": "iban",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "payment_method",
+              "displayName": "payment_method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_event_date",
+              "displayName": "tax_event_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "issue_date",
+              "displayName": "issue_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "supplier_id_number",
+              "displayName": "supplier_id_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "original_link",
+              "displayName": "original_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sync_status",
+              "displayName": "sync_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "synced_at",
+              "displayName": "synced_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "mysql_accounting_id",
+              "displayName": "mysql_accounting_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sync_error",
+              "displayName": "sync_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        5312,
+        -256
+      ],
+      "id": "d74c0d07-e965-4dd8-abf1-220c2b1b60eb",
+      "name": "Insert rows in a table2",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "triggerMode": "listenTrigger",
+        "channelName": "n8n_channel_contract_image",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        -240
+      ],
+      "id": "be22edac-1932-41d4-ba65-12b48e25d0b3",
+      "name": "Postgres Trigger Contract PNG",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "07399575-5dc5-40ea-9786-c7eeab361a95",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "=invoice",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3312,
+        -80
+      ],
+      "id": "f82bb6bd-6810-4b76-aa47-bbc2b4be03fd",
+      "name": "If1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        -240
+      ],
+      "id": "601dbc4e-2007-48ba-8c35-ccb1e160b6b5",
+      "name": "Wait",
+      "webhookId": "fa899e0e-c757-4277-bd3a-6080c9fa8f3a"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2336,
+        -240
+      ],
+      "id": "dc025c22-22a4-457b-818b-8ad30d87751f",
+      "name": "Wait1",
+      "webhookId": "765113c9-1dbd-4e60-998f-daaf04597ed5"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "email_attachments",
+          "mode": "list",
+          "cachedResultName": "email_attachments"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_id": "={{ $json.email_id }}",
+            "id": "={{ $json.attachment_id }}",
+            "attachment_name": "={{ $json.original_document }}",
+            "classification_timestamp": "={{ $now }}",
+            "total_pages": "={{ $json.total_pages }}",
+            "processing_status": "completed"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email_id",
+              "displayName": "email_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "attachment_name",
+              "displayName": "attachment_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "attachment_path",
+              "displayName": "attachment_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_size",
+              "displayName": "attachment_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_type",
+              "displayName": "attachment_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "document_category",
+              "displayName": "document_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "classification_timestamp",
+              "displayName": "classification_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "extracted_data",
+              "displayName": "extracted_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "processing_status",
+              "displayName": "processing_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "classification_summary",
+              "displayName": "classification_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "total_pages",
+              "displayName": "total_pages",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number",
+              "displayName": "contract_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3184,
+        176
+      ],
+      "id": "7fe1362e-e336-42fd-8c61-b6b011014c48",
+      "name": "Update rows in a table1",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_pages",
+          "mode": "list",
+          "cachedResultName": "document_pages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "attachment_id": "={{ $json.id }}",
+            "page_number": "={{ $('Code in JavaScript').item.json.page_number }}",
+            "confidence_score": "={{ $json.confidence_score }}",
+            "category": "={{ $json.document_category }}",
+            "summary": "={{ $json.classification_summary }}",
+            "contract_number": "={{ $json.contract_number }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_id",
+              "displayName": "attachment_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "page_number",
+              "displayName": "page_number",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number",
+              "displayName": "contract_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number_confidence",
+              "displayName": "contract_number_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3424,
+        176
+      ],
+      "id": "e953295f-90e0-4b0a-aca4-ad25c3c27e06",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Postgres Trigger Contract PNG": [
+      {
+        "json": {
+          "length": 762,
+          "processId": 20848,
+          "channel": "n8n_channel_contract_image",
+          "payload": {
+            "id": 18765986,
+            "file_path": "C:\\CargoProcessing\\processed_documents\\2025\\images\\2025-10\\Invoice _ 23443_20251028_064824\\001_2.png",
+            "file_type": "image",
+            "status": "pending",
+            "priority": 0,
+            "attempts": 0,
+            "max_attempts": 3,
+            "created_at": "2025-10-28T11:40:24.515579",
+            "processed_at": null,
+            "last_attempt_at": null,
+            "error_message": null,
+            "email_id": 1723,
+            "attachment_id": 979,
+            "file_metadata": {
+              "email_id": 1723,
+              "page_number": 2,
+              "total_pages": 3,
+              "upload_date": "28/10/2025",
+              "file_size_kb": 2752.736328125,
+              "original_file_path": "C:\\CargoAttachments\\vikizar@abv.bg\\2025-10\\Invoice _ 23443_20251028_064824\\001.pdf",
+              "processing_timestamp": "2025-10-28T11:39:54.681799"
+            },
+            "original_document": "001.pdf",
+            "group_processing_status": "pending"
+          },
+          "name": "notification"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Read All Files1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Files1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Category",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Category": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INVOICE": {
+      "main": [
+        [
+          {
+            "node": "Format Dates for DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INVOICE3": {
+      "main": [
+        [
+          {
+            "node": "INVOICE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "INVOICE3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "INVOICE3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit file path": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "INVOICE",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Dates for DB": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table2": {
+      "main": [
+        []
+      ]
+    },
+    "Postgres Trigger Contract PNG": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Edit file path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update rows in a table1": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "cf91e1df-4144-4591-93d3-2abd635f6fed",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6a91fd66b829680413e756bca7a872f2f4980a35d99abe1eee7fd95b88570135"
+  },
+  "id": "z4aSynLlaawTeX0p",
+  "tags": []
+}

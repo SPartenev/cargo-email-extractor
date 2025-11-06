@@ -1,0 +1,126 @@
+===========================================
+Git команди за качване в GitHub репозиторията
+Репозиторий: SPartenev/cargo-email-extractor
+===========================================
+
+ВАЖНО: Тези команди ще ЗАМЕНЯТ всички файлове в main branch!
+
+===========================================
+ВАРИАНТ 1: Автоматичен скрипт (Препоръчително)
+===========================================
+
+Изпълнете в PowerShell:
+    cd C:\Python_project\CargoFlow\Documentation
+    .\upload_to_github.ps1
+
+===========================================
+ВАРИАНТ 2: Ръчно изпълнение (стъпка по стъпка)
+===========================================
+
+1. Отворете PowerShell или Command Prompt
+
+2. Навигирайте към директорията:
+   cd C:\Python_project\CargoFlow\Documentation
+
+3. Инициализирайте Git (ако няма репозиторий):
+   git init
+
+4. Добавете remote репозиторий:
+   git remote add origin https://github.com/SPartenev/cargo-email-extractor.git
+   
+   ИЛИ ако remote вече съществува:
+   git remote set-url origin https://github.com/SPartenev/cargo-email-extractor.git
+
+5. Добавете всички файлове:
+   git add .
+
+6. Проверете какво ще се качи:
+   git status
+
+7. Създайте commit:
+   git commit -m "Replace all files with CargoFlow Documentation project"
+
+8. Качете файловете (ЗАМЕНЯ всичко в main branch!):
+   git push -f origin main
+
+===========================================
+ВАРИАНТ 3: Създаване на нов branch (По-безопасно)
+===========================================
+
+Ако искате да създадете нов branch вместо да заменяте main:
+
+1. След стъпка 4 (добавяне на файлове):
+   git checkout -b cargoflow-docs
+
+2. След стъпка 7 (commit):
+   git push -u origin cargoflow-docs
+
+3. След това можете да merge-нете в main чрез GitHub UI или:
+   git checkout main
+   git merge cargoflow-docs
+   git push origin main
+
+===========================================
+ВАРИАНТ 4: Използване на GitHub CLI (ако е инсталиран)
+===========================================
+
+1. Автентикирайте се:
+   gh auth login
+
+2. Клонирайте репозиторията:
+   gh repo clone SPartenev/cargo-email-extractor temp-repo
+
+3. Копирайте файловете:
+   Copy-Item -Path "C:\Python_project\CargoFlow\Documentation\*" -Destination ".\temp-repo\" -Recurse -Force
+
+4. Push-нете:
+   cd temp-repo
+   git add .
+   git commit -m "Replace all files with CargoFlow Documentation"
+   git push -f origin main
+
+===========================================
+ПРОВЕРКА СЛЕД КАЧВАНЕ
+===========================================
+
+Отворете в браузър:
+https://github.com/SPartenev/cargo-email-extractor
+
+Проверете дали всички файлове са качени:
+- README.md
+- CONTEXT_FOR_NEW_CHAT.md
+- PROJECT_STATUS.md
+- TODO.md
+- TROUBLESHOOTING.md
+- DEPLOYMENT_GUIDE.md
+- MODULE_DEPENDENCIES.md
+- SYSTEM_ARCHITECTURE.md
+- DATABASE_SCHEMA.md
+- SESSION_SUMMARY_20251106.md
+- MILESTONE_MODULE_DOCS_COMPLETE.md
+- modules/ (папка с 6 модула)
+- n8n/ (папка с workflows)
+- database/ (папка с README)
+- config/ (папка с README)
+- docs/ (папка с STATUS_FLOW_MAP.md)
+
+===========================================
+ВАЖНИ ЗАБЕЛЕЖКИ
+===========================================
+
+1. git push -f (force push) ЗАМЕНЯ всичко в main branch!
+   Уверете се, че това е това, което искате!
+
+2. Ако имате важни данни в репозиторията, направете backup първо:
+   git clone https://github.com/SPartenev/cargo-email-extractor.git backup-repo
+
+3. Ако имате проблеми с автентикацията:
+   - Използвайте Personal Access Token вместо парола
+   - Или настройте SSH ключ
+
+4. За да видите какво ще се качи преди push:
+   git log origin/main..HEAD
+   git diff origin/main
+
+===========================================
+

@@ -1,0 +1,1128 @@
+{
+  "name": "Contract_Text_CargoFlow",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Text').item.json.toJsonString() }}",
+        "options": {
+          "systemMessage": "=## Role\nAct as an intelligent document classifier and page grouper for business and transport documents.\n\n## Task\nAnalyze document content and determine:\n1. Document category\n2. Document grouping (which pages belong together)\n3. Page numbering within documents\n4. **Contract number extraction** (if applicable)\n\n## Categories (Pick Only One)\n- contract — договор\n- contract_amendment — изменение на договор  \n- contract_termination — прекратяване на договор\n- contract_extension — продължаване на договор\n- service_agreement — споразумение за услуги\n- framework_agreement — рамково споразумение\n- cmr — CMR (международен товарителски документ)\n- protocol — протокол\n- annex — анекс\n- insurance — застраховка\n- invoice — фактура\n- credit_note — кредитно известие\n- other — друго\n\n## Contract Number Extraction\n**IMPORTANT:** Always search for contract numbers in the document text. Look for patterns like:\n- \"50xxxxxxxxx\" (10-11 цифри, започва с 50)\n- \"20xxxxxxxxx\" (10-11 цифри, започва с 20)\n- \"Договор № 50xxxxxxxxx\" / \"Contract No. 20xxxxxxxxx\"\n- \"№ 50xxxxxxxxx\" / \"No. 20xxxxxxxxx\"\n- \"Договорен номер 50xxxxxxxxx\" / \"Contract number 20xxxxxxxxx\"\n\n**Extract the FULL contract number including any prefixes/suffixes.**\n\n## Grouping Logic\n- If document has multiple pages: use same document_id for all pages\n- If different documents: use different document_id\n- Use logical grouping based on content similarity\n- **Contract number helps with grouping** - documents with same contract number should be grouped together\n\n## Output Format\n{\n  \"category\": \"cmr\",\n  \"confidence\": 0.95,\n  \"summary\": \"CMR за транспорт на стоки\",\n  \"document_id\": \"cmr_001\",\n  \"page_number\": 1,\n  \"total_pages\": 2,\n  \"grouping_key\": \"cmr_001\",\n  \"contract_number\": \"50251006834\",\n  \"contract_number_confidence\": 0.90\n}",
+          "returnIntermediateSteps": true,
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        240
+      ],
+      "id": "955690bc-3470-4787-8e97-903f43d47b48",
+      "name": "Category"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Cargo_TriggerTEXT').item.json.payload.file_path.split('.').last() }}",
+                    "rightValue": "=txt",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "85cc48d3-cdf6-45b1-96b4-f58099f4f408"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cd6175f6-7edc-40cc-a675-dc3c6bb3ebe8",
+                    "leftValue": "={{ $('Cargo_TriggerTEXT').item.json.payload.file_path.split('.').last() }}",
+                    "rightValue": "png",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "png"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -992,
+        256
+      ],
+      "id": "f651887d-7931-4b1d-82db-0b0cec66c74e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini-2024-07-18",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini-2024-07-18"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -320,
+        480
+      ],
+      "id": "871e7957-35d1-48ec-a072-3769375dccea",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "iBevDyN3CnpUOBYK",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "email_attachments",
+          "mode": "list",
+          "cachedResultName": "email_attachments"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_id": "={{ $json.email_id }}",
+            "id": "={{ $json.attachment_id }}",
+            "confidence_score": "={{ $json.confidence }}",
+            "document_category": "={{ $json.category }}",
+            "classification_summary": "={{ $json.summary }}",
+            "attachment_name": "={{ $json.original_document }}",
+            "classification_timestamp": "={{ $now }}",
+            "total_pages": "={{ $json.total_pages }}",
+            "contract_number": "={{ $json.contract_number }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email_id",
+              "displayName": "email_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "attachment_name",
+              "displayName": "attachment_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "attachment_path",
+              "displayName": "attachment_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_size",
+              "displayName": "attachment_size",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_type",
+              "displayName": "attachment_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "document_category",
+              "displayName": "document_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "classification_timestamp",
+              "displayName": "classification_timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "extracted_data",
+              "displayName": "extracted_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "processing_status",
+              "displayName": "processing_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "classification_summary",
+              "displayName": "classification_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_pages",
+              "displayName": "total_pages",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number",
+              "displayName": "contract_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        48
+      ],
+      "id": "8bb8b35a-c9d9-4d9f-bb9a-48b5416a18e7",
+      "name": "Update rows in a table",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response\nconst aiOutput = $json.output;\n\n// Премахни markdown ако има\nconst cleanJson = aiOutput.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nconst parsed = JSON.parse(cleanJson);\n\n// Вземи данните от trigger\nconst triggerData = $('Cargo_TriggerTEXT').first().json.payload;\n\n// Проверяваме дали parsed е масив или единичен обект\nconst results = Array.isArray(parsed) ? parsed : [parsed];\n\n// Обработваме всеки резултат от AI анализа\nreturn results.map(item => ({\n  json: {\n    category: item.category,\n    confidence: item.confidence,\n    summary: item.summary,\n    document_id: item.document_id,\n    page_number: item.page_number,\n    total_pages: item.total_pages,\n    grouping_key: item.grouping_key,\n    contract_number: item.contract_number,\n    contract_number_confidence: item.contract_number_confidence,\n    attachment_id: triggerData.attachment_id,\n    email_id: triggerData.email_id,\n    original_document: triggerData.original_document\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        240
+      ],
+      "id": "c5c4703e-870d-4e57-8bb1-8b88083cc58b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "triggerMode": "listenTrigger",
+        "channelName": "n8n_channel_contract_text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        256
+      ],
+      "id": "523f2ff2-0d29-4608-b4bb-cccf489c5980",
+      "name": "Cargo_TriggerTEXT",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.output.toJsonString() }} ",
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"general_data\": {\n    \"Получател\": \"\",\n    \"ДДС получател\": \"\",\n    \"Адрес_клиент\": \"\",\n    \"Доставчик\": \"\",\n    \"ДДС издател\": \"\",\n    \"Адрес_доставчик\": \"\",\n    \"email_подател\": \"\",\n    \"IBAN\": \"\",\n    \"ИН\": \"\",\n    \"Дата на издаване\": \"\",\n    \"Фактура номер\": \"\",\n    \"Сума без ДДС\": \"\",\n    \"ДДС\": \"\",\n    \"Сума за плащане\": \"\",\n    \"валута\": \"\"\n  },\n  \"line_items\": [\n    {\n      \n      \"стоки и услуги\": \"\"\n      \n    }\n  ]\n}\n",
+        "options": {
+          "systemPromptTemplate": "You are an expert extraction algorithm.\nOnly extract relevant information from the text.\nIf you do not know the value of an attribute asked to extract, you may omit the attribute's value."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        224
+      ],
+      "id": "c979d684-65b6-415e-90cf-b34fc3252f87",
+      "name": "INVOICE",
+      "alwaysOutputData": false,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Text').item.json.toJsonString() }}",
+        "options": {
+          "systemMessage": "=## Role\n\nAct as an expert in document data extraction and validation, specializing in processing invoices and related financial documents.\n\n## Task\n\nAnalyze provided text data and extract structured information into two strictly validated **JSON objects**: one for general invoice details and one for itemized product/service data.\n\n## Specifics\n\n- Parse and validate invoice data, ensuring all fields follow defined formatting and logic rules.\n- Include in both JSON objects the following file metadata fields:\n  - `\"име на файл\"` (file name): `{file_name}`\n  - `\"дата на създаване на файл\"` (file creation date): `{upload_date}`\n  - `\"размер на файл (в килобайтове)\"` (file size): `{file_size:.2f}`\n\n## Validation Rules\n\n1. **Missing Data:** Use an empty string (`\"\"`) for missing or non-parsable fields.\n2. **Dates:** Use DD/MM/YYYY format. Reject future dates. Dates must be valid and logical (e.g., issue date ≤ processing date).\n3. **Monetary Values:** Use a period (.) as a decimal separator. Values must be valid numerics.\n4. **Quantities:** Must be strictly positive and non-zero.\n\n## Output Format\n\nRespond with the following two objects:\n\n### JSON Object 1: General Details\nJSON Output Format with field descriptions:\n{\n  \"general_data\": {\n    \"Получател\": \"\", // Recipient company name\n    \"ДДС получател\": \"\", // VAT number of the recipient\n    \"Адрес_клиент\": \"\", // Customer address \n    \"Доставчик\": \"\", // Supplier company name\n    \"ДДС издател\": \"\", // Supplier VAT number\n    \"Адрес_доставчик\": \"\", // Supplier address\n    \"IBAN\": \"\", // Bank account IBAN\n    \"ИН\": \"\", // Identification number (bulstat/egn) of the supplier\n    \"начин на плащане\": \"\", // Payment method\n    \"Дата на издаване\": \"\", // Invoice issue date in DD.MM.YYYY\n    \"Фактура номер\": \"\", // Invoice number\n    \"Сума без ДДС\": \"\", // Subtotal (amount before VAT), numeric with dot separator\n    \"ДДС\": \"\", // VAT amount, numeric\n    \"Сума за плащане\": \"\", // Total amount (incl. VAT), numeric\n    \"валута\": \"\" // Currency used (e.g., BGN, EUR)\n    \n  },\n  \"line_items\": [\n    {\n      \"стоки и услуги\": \"\" // Description of the good or service\n      \n     },\n    // Additional line items if present\n  ]\n}\n\n\nUse the following values:\n\nFile name: {file_name}\n\nUpload date: {upload_date}\n\nFile size: {file_size:.2f}\n\nFile link: https://itservices2017bg.sharepoint.com/:b:/r/Shared%20Documents/Invoice_in/processed_documents/2025/originals/052025/{file_name}\n\nRespond only with the JSON object as described above, no extra text, no explanations. Validate dates, numeric fields, and roles strictly.",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        720,
+        224
+      ],
+      "id": "d8b83897-e969-46fb-9ee9-1546cbbc6f64",
+      "name": "INVOICE3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Функция за конвертиране на дата от DD/MM/YYYY към YYYY-MM-DD\nfunction parseDate(dateStr) {\n  if (!dateStr || dateStr === '' || dateStr.trim() === '') return null;\n  \n  const parts = dateStr.split('/');\n  if (parts.length !== 3) return null;\n  \n  const [day, month, year] = parts;\n  \n  // Валидация на датата\n  const d = parseInt(day);\n  const m = parseInt(month);\n  const y = parseInt(year);\n  \n  if (isNaN(d) || isNaN(m) || isNaN(y)) return null;\n  if (d < 1 || d > 31 || m < 1 || m > 12) return null;\n  \n  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;\n}\n\n// Функция за безопасно парсиране на числа\nfunction parseNumber(val) {\n  if (!val || val === '' || val.toString().trim() === '') return null;\n  \n  // Заменяме запетая с точка\n  const cleaned = val.toString().replace(',', '.');\n  const num = parseFloat(cleaned);\n  \n  return isNaN(num) ? null : num;\n}\n\nconst general = $json.output.general_data;\n\nreturn [{\n  json: {\n    recipient_name: general[\"Получател\"] || null,\n    recipient_vat: general[\"ДДС получател\"] || null,\n    supplier_name: general[\"Доставчик\"] || null,\n    supplier_vat: general[\"ДДС издател\"] || null,\n    iban: general[\"IBAN\"] || null,\n    tax_number: general[\"ИН\"] || null,\n    issue_date: parseDate(general[\"Дата на издаване\"]),\n    invoice_number: general[\"Фактура номер\"] || null,\n    vat_amount: parseNumber(general[\"ДДС\"]),\n    total_amount: parseNumber(general[\"Сума за плащане\"]),\n    currency: general[\"валута\"] || null,\n    \n    // Добавяме line_items за евентуално използване\n    line_items: $json.output.line_items\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        224
+      ],
+      "id": "e5e178b1-846f-4018-86c1-bb46722039cf",
+      "name": "Format Dates for DB"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "invoice_base",
+          "mode": "list",
+          "cachedResultName": "invoice_base"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_id": "={{ $('Text').item.json.payload.email_id }}",
+            "total_amount": "={{ $json.total_amount }}",
+            "invoice_number": "={{ $json.invoice_number }}",
+            "invoice_date": "={{ $json.issue_date }}",
+            "supplier_name": "={{ $json.supplier_name }}",
+            "supplier_vat": "={{ $json.supplier_vat }}",
+            "customer_name": "={{ $json.recipient_name }}",
+            "customer_vat": "={{ $json.recipient_vat }}",
+            "currency": "={{ $json.currency }}",
+            "iban": "={{ $json.iban }}",
+            "issue_date": "={{ $json.issue_date }}",
+            "supplier_id_number": "={{ $json.tax_number }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "email_id",
+              "displayName": "email_id",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_date",
+              "displayName": "invoice_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "supplier_name",
+              "displayName": "supplier_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "supplier_vat",
+              "displayName": "supplier_vat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "supplier_address",
+              "displayName": "supplier_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_vat",
+              "displayName": "customer_vat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_address",
+              "displayName": "customer_address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "subtotal",
+              "displayName": "subtotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_amount",
+              "displayName": "tax_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_rate",
+              "displayName": "tax_rate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "total_amount",
+              "displayName": "total_amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "original_file_path",
+              "displayName": "original_file_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "extracted_data",
+              "displayName": "extracted_data",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "validation_status",
+              "displayName": "validation_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "validation_errors",
+              "displayName": "validation_errors",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sender_email",
+              "displayName": "sender_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "iban",
+              "displayName": "iban",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "payment_method",
+              "displayName": "payment_method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "tax_event_date",
+              "displayName": "tax_event_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "issue_date",
+              "displayName": "issue_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "supplier_id_number",
+              "displayName": "supplier_id_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "original_link",
+              "displayName": "original_link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sync_status",
+              "displayName": "sync_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "synced_at",
+              "displayName": "synced_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "mysql_accounting_id",
+              "displayName": "mysql_accounting_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sync_error",
+              "displayName": "sync_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1696,
+        224
+      ],
+      "id": "04cd4192-85b9-45a4-bd1c-d326aac37e89",
+      "name": "Insert rows in a table2",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "07399575-5dc5-40ea-9786-c7eeab361a95",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "=invoice",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        240
+      ],
+      "id": "49853d04-9962-44d1-be4f-fca662b4d058",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 16384
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        704,
+        448
+      ],
+      "id": "0ac7059d-d611-4703-8000-701ca12c67bc",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IPyd7gWq10cQMAOO",
+          "name": "Invoice_Email"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $('Cargo_TriggerTEXT').item.json.payload.file_path }}"
+      },
+      "name": "Read All Files",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        240
+      ],
+      "id": "c378531f-3e9f-4efa-b0b9-f23ce6c39b36"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {
+          "keepSource": "json"
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        240
+      ],
+      "id": "6fa23ea8-8940-4fad-9a49-45d6ac7922e7",
+      "name": "Text"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini-2024-07-18",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini-2024-07-18"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1056,
+        464
+      ],
+      "id": "4d66e736-7384-4fa1-ac34-208a3a83a897",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "iBevDyN3CnpUOBYK",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Cargo_TriggerTEXT": [
+      {
+        "json": {
+          "length": 719,
+          "processId": 7092,
+          "channel": "n8n_channel_contract_text",
+          "payload": {
+            "id": 18766397,
+            "file_path": "C:\\CargoProcessing\\processed_documents\\2025\\ocr_results\\2025-10\\Фактура за транспорт No  0000003724  от 2Б Лоджистикс ООД_20251028_120121\\Invoice No 00000003724_extracted.txt",
+            "file_type": "text",
+            "status": "pending",
+            "priority": 0,
+            "attempts": 0,
+            "max_attempts": 3,
+            "created_at": "2025-10-31T11:06:11.564901",
+            "processed_at": null,
+            "last_attempt_at": null,
+            "error_message": null,
+            "email_id": 1778,
+            "attachment_id": 1040,
+            "file_metadata": {
+              "email_id": 1778,
+              "file_type": "text",
+              "attachment_id": 1040,
+              "original_document": "Invoice No 00000003724.pdf"
+            },
+            "original_document": "Invoice No 00000003724.pdf",
+            "group_processing_status": "pending"
+          },
+          "name": "notification"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Category": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Read All Files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Category",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update rows in a table": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update rows in a table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargo_TriggerTEXT": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INVOICE": {
+      "main": [
+        [
+          {
+            "node": "Format Dates for DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INVOICE3": {
+      "main": [
+        [
+          {
+            "node": "INVOICE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Dates for DB": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "INVOICE3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "INVOICE3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Files": {
+      "main": [
+        [
+          {
+            "node": "Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text": {
+      "main": [
+        [
+          {
+            "node": "Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "INVOICE",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Sofia",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "54e24875-1665-48a1-b29a-863ad52d91cc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6a91fd66b829680413e756bca7a872f2f4980a35d99abe1eee7fd95b88570135"
+  },
+  "id": "C4Jmyp0CGybzCvbY",
+  "tags": []
+}
