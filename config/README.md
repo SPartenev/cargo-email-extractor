@@ -1,48 +1,58 @@
-# Configuration Files
+# Configuration Files Documentation
 
-**Last Updated:** November 06, 2025  
-**Purpose:** Example configuration files for CargoFlow system
+**Last Updated:** November 12, 2025  
+**Purpose:** Documentation for CargoFlow system configuration files
 
 ---
 
-## 📁 Folder Contents
+## 📁 Configuration Files Location
+
+**Note:** This folder contains only documentation. Actual configuration files are located in their respective module folders.
 
 ```
-config/
-├── graph_config.json.example       # Microsoft Graph API config
-├── queue_config.json.example       # Queue manager settings
-├── .env.example                    # Environment variables
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+CargoFlow/
+├── Cargoflow_mail/
+│   └── graph_config.json          # Microsoft Graph API config
+├── Cargoflow_Queue/
+│   └── queue_config.json          # Queue manager settings
+└── Cargoflow_Contracts/
+    └── config/
+        ├── settings.py            # Contract processor settings
+        └── database.py            # Database connection
 ```
 
 ---
 
 ## 🔧 Configuration Files
 
-### 1. graph_config.json.example
+### 1. graph_config.json
 
 **Purpose:** Microsoft Graph API credentials and database connection
 
-**Location:** Copy to `Cargoflow_mail/graph_config.json`
+**Location:** `Cargoflow_mail/graph_config.json` (actual file)
 
-**Template:**
+**Structure:**
 ```json
 {
-  "client_id": "your-client-id-here",
-  "client_secret": "your-client-secret-here",
-  "tenant_id": "your-tenant-id-here",
-  "user_email": "your-email@domain.com",
+  "client_id": "Azure AD Application ID",
+  "client_secret": "Azure AD Client Secret",
+  "tenant_id": "Azure AD Tenant ID",
+  "user_email": "pa@cargo-flow.fr",
   "database": {
     "host": "localhost",
     "database": "Cargo_mail",
     "user": "postgres",
-    "password": "your-password-here",
+    "password": "your-password",
     "port": 5432
   },
-  "attachment_folder": "C:\\CargoAttachments\\",
-  "log_file": "graph_extraction.log",
-  "check_interval": 60
+  "monitoring": {
+    "check_interval_minutes": 3,
+    "bootstrap_email_count": 100
+  },
+  "paths": {
+    "attachments_base": "C:/CargoAttachments",
+    "processing_base": "C:/CargoProcessing"
+  }
 }
 ```
 
@@ -60,38 +70,39 @@ config/
 
 ---
 
-### 2. queue_config.json.example
+### 2. queue_config.json
 
 **Purpose:** Queue manager settings for text and image processing
 
-**Location:** Copy to `Cargoflow_Queue/queue_config.json`
+**Location:** `Cargoflow_Queue/queue_config.json` (actual file)
 
-**Template:**
+**Structure:**
 ```json
 {
-    "database": {
-        "host": "localhost",
-        "database": "Cargo_mail",
-        "user": "postgres",
-        "password": "your-password-here",
-        "port": 5432
-    },
     "text_queue": {
         "watch_path": "C:\\CargoProcessing\\processed_documents\\2025\\ocr_results",
         "webhook_url": "http://localhost:5678/webhook/analyze-text",
-        "rate_limit_per_minute": 3,
-        "scan_interval_seconds": 15,
-        "file_pattern": "*_extracted.txt",
-        "log_file": "text_queue_manager.log"
+        "rate_limit_per_minute": 5,
+        "scan_interval_seconds": 10,
+        "file_pattern": "*_extracted.txt"
     },
     "image_queue": {
         "watch_path": "C:\\CargoProcessing\\processed_documents\\2025\\images",
         "webhook_url": "http://localhost:5678/webhook/analyze-image",
         "rate_limit_per_minute": 3,
         "scan_interval_seconds": 15,
-        "file_pattern": "*.png",
-        "min_file_size_kb": 50,
-        "log_file": "image_queue_manager.log"
+        "file_pattern": "*.png"
+    },
+    "database": {
+        "host": "localhost",
+        "database": "Cargo_mail",
+        "user": "postgres",
+        "password": "your-password",
+        "port": 5432
+    },
+    "retry": {
+        "max_attempts": 3,
+        "retry_delay_seconds": 60
     }
 }
 ```
@@ -106,159 +117,58 @@ config/
 
 ---
 
-### 3. .env.example
+### 3. settings.py (Contract Processor)
 
-**Purpose:** Environment variables for all modules
+**Purpose:** Contract processor configuration settings
 
-**Location:** Copy to project root as `.env`
+**Location:** `Cargoflow_Contracts/config/settings.py` (actual file)
 
-**Template:**
-```bash
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=Cargo_mail
-DB_USER=postgres
-DB_PASSWORD=your-password-here
+**Key Settings:**
+```python
+# Database Configuration
+DB_CONFIG = {
+    'host': 'localhost',
+    'port': 5432,
+    'database': 'Cargo_mail',
+    'user': 'postgres',
+    'password': 'your-password'
+}
 
-# Microsoft Graph API
-GRAPH_CLIENT_ID=your-client-id-here
-GRAPH_CLIENT_SECRET=your-client-secret-here
-GRAPH_TENANT_ID=your-tenant-id-here
-GRAPH_USER_EMAIL=your-email@domain.com
+# Folder Organization Paths
+CONTRACTS_BASE_PATH = Path(
+    r'C:\Users\Delta\Cargo Flow\Site de communication - Documents\Документи по договори'
+)
 
-# n8n
-N8N_HOST=localhost
-N8N_PORT=5678
-N8N_PROTOCOL=http
-
-# AI APIs (choose one or both)
-OPENAI_API_KEY=sk-your-openai-key-here
-GOOGLE_GEMINI_API_KEY=your-gemini-key-here
-
-# File Paths
-CARGO_ATTACHMENTS_PATH=C:\CargoAttachments
-CARGO_PROCESSING_PATH=C:\CargoProcessing
-CARGO_CONTRACTS_PATH=C:\Users\Delta\Cargo Flow\Site de communication - Documents\Документи по договори
+# Processing Settings
+BATCH_SIZE = 10
+SCAN_INTERVAL = 30  # seconds
 
 # Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=%(asctime)s - %(name)s - %(levelname)s - %(message)s
-
-# Queue Settings
-QUEUE_RATE_LIMIT=3
-QUEUE_SCAN_INTERVAL=15
+LOG_LEVEL = 'INFO'
+LOG_FILE = 'contract_processor.log'
 ```
 
-**Usage in Python:**
-```python
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-db_host = os.getenv('DB_HOST')
-db_password = os.getenv('DB_PASSWORD')
-openai_key = os.getenv('OPENAI_API_KEY')
-```
+**See also:** `Cargoflow_Contracts/docs/config.md` for detailed documentation
 
 ---
 
-### 4. requirements.txt
+## 🛠️ Configuration Management
 
-**Purpose:** Python package dependencies for all modules
+### Editing Configuration Files
 
-**Location:** Project root
+**Important:** Configuration files contain sensitive data (passwords, API keys). Never commit them to Git.
 
-**Template:**
-```txt
-# Core dependencies
-python-dotenv==1.0.0
-psycopg2-binary==2.9.9
+**Files to edit:**
+1. `Cargoflow_mail/graph_config.json` - Microsoft Graph API credentials
+2. `Cargoflow_Queue/queue_config.json` - Queue manager settings
+3. `Cargoflow_Contracts/config/settings.py` - Contract processor settings
 
-# Microsoft Graph
-msal==1.24.1
-requests==2.31.0
+### Verify Paths
 
-# OCR Processing
-PyMuPDF==1.23.8
-Pillow==10.1.0
-pytesseract==0.3.10
-
-# Office Processing
-python-docx==1.1.0
-openpyxl==3.1.2
-pywin32==306
-
-# Queue Management
-watchdog==3.0.0
-
-# n8n Integration
-requests==2.31.0
-
-# AI APIs
-openai==1.3.5
-google-generativeai==0.3.1
-
-# Utilities
-schedule==1.2.0
-```
-
-**Installation:**
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 🛠️ Setup Instructions
-
-### Step 1: Copy Example Files
-
-```bash
-# Copy Graph API config
-cp config/graph_config.json.example Cargoflow_mail/graph_config.json
-
-# Copy Queue config
-cp config/queue_config.json.example Cargoflow_Queue/queue_config.json
-
-# Copy environment variables
-cp config/.env.example .env
-```
-
-### Step 2: Edit Configuration Files
-
-**Edit each file and replace:**
-- `your-client-id-here` → Your actual Microsoft Graph Client ID
-- `your-client-secret-here` → Your actual Client Secret
-- `your-tenant-id-here` → Your Azure AD Tenant ID
-- `your-email@domain.com` → Your Microsoft 365 email
-- `your-password-here` → Your PostgreSQL password
-- `sk-your-openai-key-here` → Your OpenAI API key (if using OpenAI)
-- `your-gemini-key-here` → Your Google Gemini key (if using Gemini)
-
-### Step 3: Verify Paths
-
-Make sure these directories exist:
-- `C:\CargoAttachments\`
-- `C:\CargoProcessing\`
-- `C:\Users\Delta\Cargo Flow\Site de communication - Documents\Документи по договори\`
-
-Create them if needed:
-```bash
-mkdir C:\CargoAttachments
-mkdir C:\CargoProcessing
-```
-
-### Step 4: Test Configuration
-
-```python
-# Test database connection
-python -c "from config.database import test_connection; test_connection()"
-
-# Test Graph API
-python -c "from Cargoflow_mail.graph_email_extractor_v5 import test_graph_connection; test_graph_connection()"
-```
+Make sure these directories exist (they are created automatically by the system):
+- `C:\CargoAttachments\` - Email attachments storage
+- `C:\CargoProcessing\` - Processed documents
+- `C:\Users\Delta\Cargo Flow\Site de communication - Documents\Документи по договори\` - Organized contracts
 
 ---
 
@@ -284,14 +194,13 @@ python -c "from Cargoflow_mail.graph_email_extractor_v5 import test_graph_connec
 
 ## 📝 .gitignore
 
-**Add these to your `.gitignore`:**
+**Configuration files should be in `.gitignore`:**
 
 ```gitignore
 # Configuration files (sensitive data)
-.env
-graph_config.json
-queue_config.json
-*.config.json
+Cargoflow_mail/graph_config.json
+Cargoflow_Queue/queue_config.json
+Cargoflow_Contracts/config/settings.py  # If contains passwords
 
 # Logs
 *.log
@@ -299,44 +208,12 @@ queue_config.json
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 venv/
 env/
 
 # Data folders
 CargoAttachments/
 CargoProcessing/
-
-# Database
-*.db
-*.sqlite
-```
-
----
-
-## 🔄 Environment-Specific Configs
-
-### Development
-```bash
-# .env.development
-DB_NAME=Cargo_mail_dev
-LOG_LEVEL=DEBUG
-QUEUE_RATE_LIMIT=10  # Higher for testing
-```
-
-### Production
-```bash
-# .env.production
-DB_NAME=Cargo_mail
-LOG_LEVEL=INFO
-QUEUE_RATE_LIMIT=3  # Lower to prevent API rate limits
-```
-
-**Usage:**
-```bash
-# Load specific environment
-export ENV=production
-python script.py
 ```
 
 ---
@@ -347,86 +224,46 @@ python script.py
 
 ```bash
 # Test JSON syntax
-python -m json.tool graph_config.json
-
-# Or with jq
-jq . graph_config.json
+python -m json.tool Cargoflow_mail/graph_config.json
+python -m json.tool Cargoflow_Queue/queue_config.json
 ```
 
 ### Test Database Connection
 
 ```python
-import psycopg2
-
-try:
-    conn = psycopg2.connect(
-        host="localhost",
-        database="Cargo_mail",
-        user="postgres",
-        password="your-password",
-        port=5432
-    )
-    print("✅ Database connection successful!")
-    conn.close()
-except Exception as e:
-    print(f"❌ Database connection failed: {e}")
-```
-
-### Test n8n Webhooks
-
-```bash
-# Test text webhook
-curl -X POST http://localhost:5678/webhook/analyze-text
-
-# Test image webhook
-curl -X POST http://localhost:5678/webhook/analyze-image
+# From Cargoflow_Contracts
+from config.database import test_connection
+test_connection()
 ```
 
 ---
 
 ## 📚 Related Documentation
 
-- **[DEPLOYMENT_GUIDE.md](../docs/DEPLOYMENT_GUIDE.md)** - Full setup guide (planned)
-- **[SYSTEM_ARCHITECTURE.md](../docs/SYSTEM_ARCHITECTURE.md)** - System overview (planned)
-- **[TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)** - Common issues (planned)
+- **[DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md)** - Full setup guide
+- **[SYSTEM_ARCHITECTURE.md](../SYSTEM_ARCHITECTURE.md)** - System overview
+- **[TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - Common issues
+- **[Cargoflow_Contracts/docs/config.md](../../Cargoflow_Contracts/docs/config.md)** - Contract processor config details
 
 ---
 
 ## 🆘 Common Issues
 
-### Issue 1: "Module not found"
-```bash
-# Solution: Install requirements
-pip install -r config/requirements.txt
-```
+### Issue 1: "Database connection refused"
+- Check PostgreSQL is running
+- Verify credentials in config files
+- Check firewall settings
 
-### Issue 2: "Database connection refused"
-```bash
-# Solution: Check PostgreSQL is running
-pg_ctl status
+### Issue 2: "Invalid Graph API credentials"
+- Verify credentials in Azure Portal
+- Make sure app has correct permissions (Mail.Read, Mail.ReadWrite)
+- Try regenerating client secret
 
-# Start PostgreSQL if needed
-pg_ctl start
-```
-
-### Issue 3: "Invalid Graph API credentials"
-```bash
-# Solution: Verify credentials in Azure Portal
-# Make sure app has correct permissions
-# Try regenerating client secret
-```
+### Issue 3: "Configuration file not found"
+- Check file paths in this documentation
+- Verify files exist in their respective module folders
 
 ---
 
-## 📞 Support
-
-For configuration help:
-1. Check example files in this folder
-2. Verify credentials in respective portals
-3. Test connections with provided scripts
-4. Review [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) (planned)
-
----
-
-**Last Updated:** November 06, 2025  
-**Status:** Example files ready - waiting for actual configs to be created
+**Last Updated:** November 12, 2025  
+**Status:** Documentation for actual configuration files

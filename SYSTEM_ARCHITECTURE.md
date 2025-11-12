@@ -2,6 +2,7 @@
 
 **Version:** 1.0  
 **Created:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Status:** Production Architecture  
 **Read Time:** 20 minutes
 
@@ -850,7 +851,15 @@ C:\
 | **Extracted Text** | `{original_name}_extracted.txt` | `invoice_extracted.txt` |
 | **Extracted Image** | `{original_name}_{page}.png` | `contract_1.png` |
 | **Metadata** | `{original_name}_metadata.json` | `document_metadata.json` |
-| **Organized Folder** | `{contract_key}_{index}` | `50251006834_001` |
+| **Organized Folder** | `{contract_key}_{index}` or `NoNumber_{subject}_{index}` | `50251006834_001` |
+| **Invoice File** | `invoice_{invoice_number}_{supplier_name}.pdf` | `invoice_2000001866_CARGOFLO_V_LOGISTICS_SARL.pdf` |
+| **Category File** | `{category}_{original_name}.{ext}` | `cmr_20251109_194318.jpg` |
+| **Split Document** | `{category}_{original_stem}.pdf` | `other_50251007351.pdf`, `protocol_50251007351.pdf` |
+
+**Special Features:**
+- **Invoice Naming:** Extracts invoice number and supplier name from `invoice_base` table
+- **Multi-Page Splitting:** PNG pages grouped by category, separate PDF created for each category
+- **Category Prefix:** All files prefixed with document category for quick identification
 
 **Storage Management:**
 - No automatic cleanup (manual intervention required)

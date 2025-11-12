@@ -3,7 +3,7 @@
 **Module:** Cargoflow_Contracts  
 **Script:** `main.py`  
 **Status:** ✅ Production Ready  
-**Last Updated:** November 06, 2025
+**Last Updated:** November 12, 2025
 
 ---
 
@@ -839,6 +839,71 @@ C:\Users\Delta\Cargo Flow\Site de communication - Documents\Документи �
 - Traceability back to original email
 - Document what files are in folder
 - Timestamp of organization
+
+---
+
+### File Naming Features
+
+#### Invoice Naming Convention
+
+**Format:** `invoice_{invoice_number}_{supplier_name}.pdf`
+
+**Data Source:** `invoice_base` table
+
+**Process:**
+1. System checks if attachment is categorized as `invoice`
+2. Queries `invoice_base` for `invoice_number` and `supplier_name`
+3. Cleans supplier name for filesystem compatibility (removes special characters, replaces spaces with underscores)
+4. Generates filename: `invoice_{number}_{supplier}.pdf`
+
+**Example:**
+- Invoice number: `2000001866`
+- Supplier: `CARGOFLO V LOGISTICS SARL`
+- Result: `invoice_2000001866_CARGOFLO_V_LOGISTICS_SARL.pdf`
+
+**Fallback:** If invoice data not available, uses standard naming: `invoice_{original_name}.pdf`
+
+---
+
+#### Multi-Page Document Splitting
+
+**Purpose:** Automatically split combined documents (e.g., invoice + CMR) into separate PDF files by category.
+
+**Process:**
+1. System checks if attachment has pages in `document_pages` table with categories
+2. Finds corresponding PNG files in `C:\CargoProcessing\processed_documents\2025\images\`
+3. Groups pages by category (invoice, cmr, protocol, etc.)
+4. Creates separate PDF files for each category group
+5. Original file is skipped if processed as PNG pages
+
+**Example:**
+- Original: `50251007351.pdf` (7 pages)
+- Categories: 5 pages = "other", 2 pages = "protocol"
+- Result:
+  - `other_50251007351.pdf` (5 pages)
+  - `protocol_50251007351.pdf` (2 pages)
+
+**Text Files:** Remain as single documents (not split)
+
+**Page Orientation:**
+- Automatic EXIF orientation correction
+- 180° rotation applied for inverted pages
+- Uses PIL ImageOps.exif_transpose() for automatic correction
+
+---
+
+#### Category Prefix Naming
+
+**Format:** `{category}_{original_name}.{extension}`
+
+**Applied to:** All non-invoice files
+
+**Examples:**
+- `cmr_20251109_194318.jpg`
+- `protocol_50251007351.pdf`
+- `other_document.pdf`
+
+**Purpose:** Quick visual identification of document type
 
 ---
 
@@ -2029,5 +2094,5 @@ PermissionError: [WinError 5] Access is denied
 ---
 
 **Module Status:** ✅ Production Ready  
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Maintained by:** CargoFlow DevOps Team

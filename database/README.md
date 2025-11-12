@@ -2,7 +2,7 @@
 
 **Database:** Cargo_mail (PostgreSQL 17)  
 **Location:** localhost:5432  
-**Last Updated:** November 06, 2025
+**Last Updated:** November 12, 2025
 
 ---
 
@@ -43,23 +43,21 @@ database/
 
 **Purpose:** Contains SQL scripts for creating tables, indexes, and constraints.
 
-**Files to create:**
-- `tables.sql` - All table CREATE statements
-- `indexes.sql` - All index definitions
-- `constraints.sql` - Foreign keys and constraints
-- `views.sql` - Database views (e.g., invoice_full_view)
+**Available Files:**
+- `01_all_tables.sql` - All 19 table CREATE statements
 
 **Usage:**
 ```bash
 # Create all tables
-psql -U postgres -d Cargo_mail -f schema/tables.sql
-
-# Create indexes
-psql -U postgres -d Cargo_mail -f schema/indexes.sql
-
-# Add constraints
-psql -U postgres -d Cargo_mail -f schema/constraints.sql
+psql -U postgres -d Cargo_mail -f schema/01_all_tables.sql
 ```
+
+**Tables Included:**
+- Core tables: emails, email_attachments, processing_queue, contracts
+- Invoice tables: invoice_base, invoice_items
+- Queue tables: email_ready_queue, contract_detection_queue
+- Support tables: document_pages, contract_folder_seq, processing_history
+- And 8 more tables
 
 ---
 
@@ -69,23 +67,23 @@ psql -U postgres -d Cargo_mail -f schema/constraints.sql
 
 **Purpose:** PostgreSQL triggers for automation and workflow integration.
 
-**Active Triggers (4):**
+**Available Files:**
+- `01_all_triggers.sql` - All 8 trigger CREATE statements
+
+**Active Triggers (8):**
 1. `trigger_notify_text` - Notifies n8n when text file added to queue
 2. `trigger_notify_image` - Notifies n8n when image added to queue
-3. `trigger_queue_email` - Queues email when all attachments classified
-4. `contract_detection_trigger` - Triggers contract detection
-
-**Files to create:**
-- `email_triggers.sql` - Email-related triggers
-- `queue_triggers.sql` - Processing queue triggers
-- `contract_triggers.sql` - Contract detection triggers
+3. `trigger_notify_image_group_ready` - Notifies n8n when all image pages ready
+4. `trigger_queue_email` - Queues email when all attachments classified
+5. `contract_detection_trigger` - Triggers contract detection
+6. `trigger_process_email_contracts` - Processes email contracts
+7. `trigger_match_attachment_on_insert` - Matches attachments on queue insert
+8. `trigger_update_queue_attachment_id` - Updates queue with attachment IDs
 
 **Usage:**
 ```bash
-# Create all triggers
-psql -U postgres -d Cargo_mail -f triggers/email_triggers.sql
-psql -U postgres -d Cargo_mail -f triggers/queue_triggers.sql
-psql -U postgres -d Cargo_mail -f triggers/contract_triggers.sql
+# Create all triggers (requires functions to be created first)
+psql -U postgres -d Cargo_mail -f triggers/01_all_triggers.sql
 ```
 
 ---
@@ -96,24 +94,29 @@ psql -U postgres -d Cargo_mail -f triggers/contract_triggers.sql
 
 **Purpose:** PostgreSQL functions used by triggers and application logic.
 
-**Active Functions (13):**
+**Available Files:**
+- `01_all_functions.sql` - All 15 function CREATE statements
+
+**Active Functions (15):**
 - `notify_n8n_text_queue()` - NOTIFY for text processing
 - `notify_n8n_image_queue()` - NOTIFY for image processing
+- `notify_n8n_image_group_ready()` - NOTIFY when image group ready
 - `queue_email_for_folder_update()` - Queue email for organization
 - `queue_contract_detection()` - Queue for contract detection
-- And 9 more utility functions
-
-**Files to create:**
-- `notify_functions.sql` - NOTIFY/LISTEN functions
-- `queue_functions.sql` - Queue management functions
-- `utility_functions.sql` - Helper functions
+- `process_email_contracts()` - Process email contracts
+- `match_attachment_on_queue_insert()` - Match attachments on insert
+- `update_queue_attachment_id()` - Update queue with attachment IDs
+- `get_contracts_by_email()` - Get contracts for email
+- `get_invoice_json()` - Get invoice as JSON
+- `get_pending_contract_detections()` - Get pending detections
+- `mark_detection_completed()` - Mark detection as completed
+- `mark_detection_error()` - Mark detection with error
+- `generate_microinvest_csv_for_email()` - Generate CSV for accounting
 
 **Usage:**
 ```bash
-# Create all functions
-psql -U postgres -d Cargo_mail -f functions/notify_functions.sql
-psql -U postgres -d Cargo_mail -f functions/queue_functions.sql
-psql -U postgres -d Cargo_mail -f functions/utility_functions.sql
+# Create all functions (must be created before triggers)
+psql -U postgres -d Cargo_mail -f functions/01_all_functions.sql
 ```
 
 ---
@@ -226,9 +229,9 @@ pg_restore -U postgres -d Cargo_mail backup_20251106.dump
 
 ## 📚 Related Documentation
 
-- **[DATABASE_SCHEMA.md](../docs/DATABASE_SCHEMA.md)** - Complete schema documentation (planned)
-- **[STATUS_FLOW_MAP.md](../docs/STATUS_FLOW_MAP.md)** - Trigger points and data flow
-- **[SYSTEM_ARCHITECTURE.md](../docs/SYSTEM_ARCHITECTURE.md)** - System architecture (planned)
+- **[DATABASE_SCHEMA.md](../reference/DATABASE_SCHEMA.md)** - Complete schema documentation
+- **[STATUS_FLOW_MAP.md](../reference/STATUS_FLOW_MAP.md)** - Trigger points and data flow
+- **[SYSTEM_ARCHITECTURE.md](../SYSTEM_ARCHITECTURE.md)** - System architecture
 
 ---
 
@@ -251,5 +254,22 @@ pg_restore -U postgres -d Cargo_mail backup_20251106.dump
 
 ---
 
-**Last Updated:** November 06, 2025  
-**Status:** Documentation in progress
+## 📋 Installation Order
+
+**Important:** Functions must be created before triggers!
+
+```bash
+# 1. Create all tables
+psql -U postgres -d Cargo_mail -f schema/01_all_tables.sql
+
+# 2. Create all functions
+psql -U postgres -d Cargo_mail -f functions/01_all_functions.sql
+
+# 3. Create all triggers (depends on functions)
+psql -U postgres -d Cargo_mail -f triggers/01_all_triggers.sql
+```
+
+---
+
+**Last Updated:** November 12, 2025  
+**Status:** SQL files generated from live database

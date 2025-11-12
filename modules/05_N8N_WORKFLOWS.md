@@ -3,7 +3,7 @@
 **Module:** Cargoflow_n8n  
 **Workflows:** `Category_ALL_text`, `Read_PNG_`  
 **Status:** ✅ Production Ready  
-**Last Updated:** November 06, 2025
+**Last Updated:** November 12, 2025
 
 ---
 
@@ -178,7 +178,7 @@ The n8n Workflows module consists of **two AI-powered workflows** (Modules 5A an
 | **AI Model** | GPT-4 / Gemini Pro | GPT-4V / Gemini Vision |
 | **Processing** | Text parsing | Image OCR + analysis |
 | **Output** | Single category per file | Array of categories (per page) |
-| **Database** | email_attachments | email_attachments + document_pages |
+| **Database** | email_attachments + document_pages | email_attachments + document_pages |
 | **Invoice** | Full extraction (items) | Basic extraction |
 | **Speed** | Fast (1-3 seconds) | Slower (3-10 seconds) |
 
@@ -1251,7 +1251,7 @@ WHERE id = 789;
 
 ---
 
-#### 2. document_pages (NEW TABLE - IMAGE WORKFLOW)
+#### 2. document_pages (FOR ALL DOCUMENT TYPES - TEXT AND IMAGE)
 
 **INSERT Operations:**
 
@@ -1278,6 +1278,11 @@ INSERT INTO document_pages (
 ```
 
 **Purpose:** Store per-page categorization for multi-page documents
+
+**Usage:**
+- **Text files:** INV_Text_CargoFlow.json workflow inserts records for text documents
+- **Image files:** Contract_PNG_ CargoFlow.json workflow inserts records for image documents
+- Both workflows use the same table structure and process documents identically regarding database operations
 
 ---
 
@@ -2464,5 +2469,5 @@ Failed to parse AI response: Unexpected token
 ---
 
 **Module Status:** ✅ Production Ready  
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Maintained by:** CargoFlow DevOps Team

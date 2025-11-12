@@ -1,6 +1,6 @@
 # CargoFlow - Quick Context for New Chat Sessions
 
-**Last Updated:** November 05, 2025  
+**Last Updated:** November 12, 2025  
 **Read Time:** 5 minutes
 
 ---
@@ -31,13 +31,18 @@ An **automated email and document processing system** that:
 
 ---
 
-## 🗄️ Database: `Cargo_mail` (PostgreSQL)
+## 🗄️ Database: `Cargo_mail` (PostgreSQL 17)
 
-### Core Tables (4 main)
-- **emails** (226 records) - Email metadata
-- **email_attachments** (296 records) - Files with AI categories
-- **processing_queue** (155 records) - Processing queue
-- **contracts** (0 records) - Detected contracts
+### Core Tables (19 tables total)
+- **emails** (226 records) - Email metadata ✅ Active
+- **email_attachments** (296 records) - Files with AI categories ✅ Active
+- **processing_queue** (213 records) - Processing queue ⚠️ 61% complete (130/213)
+- **contracts** (0 records) - Detected contracts ❌ Empty
+- **processing_history** - Processing logs
+- **email_ready_queue** - Queue for folder organization
+- **contract_detection_queue** - Contract processing queue
+- **document_pages** - Page-level categories
+- **invoice_base** + **invoice_items** - Invoice data
 
 ### Important Columns
 - `email_attachments.document_category` - AI-assigned category (13 types)
@@ -73,6 +78,23 @@ An **automated email and document processing system** that:
 | `C:\CargoProcessing\` | Processed files (text + images) |
 | `C:\Users\Delta\Cargo Flow\...\Документи по договори\` | Organized contracts |
 
+### File Organization Features
+
+**Invoice Naming:**
+- Format: `invoice_{invoice_number}_{supplier_name}.pdf`
+- Data extracted from `invoice_base` table
+- Example: `invoice_2000001866_CARGOFLO_V_LOGISTICS_SARL.pdf`
+
+**Multi-Page Document Splitting:**
+- PNG pages grouped by category (from `document_pages` table)
+- Separate PDF files created for each category
+- Example: 7-page document → `other_50251007351.pdf` (5 pages) + `protocol_50251007351.pdf` (2 pages)
+- Text files remain as single documents (not split)
+
+**Page Orientation:**
+- Automatic EXIF orientation correction
+- 180° rotation applied for inverted pages
+
 ---
 
 ## 🎯 Document Categories (13 Types)
@@ -95,7 +117,7 @@ AI assigns one of these categories to each document:
 
 ---
 
-## 🔧 Key PostgreSQL Triggers
+## 🔧 Key PostgreSQL Triggers (8 triggers total)
 
 | Trigger | Event | Function | Purpose |
 |---------|-------|----------|---------|
@@ -103,6 +125,8 @@ AI assigns one of these categories to each document:
 | `trigger_notify_image` | processing_queue INSERT | `notify_n8n_image_queue()` | Triggers image AI workflow |
 | `trigger_queue_email` | email_attachments UPDATE | `queue_email_for_folder_update()` | Queues for folder organization |
 | `contract_detection_trigger` | email_attachments UPDATE | `queue_contract_detection()` | Triggers contract detection |
+
+**Total:** 8 triggers, 13 functions, 19 tables, optimized indexes
 
 ---
 
@@ -141,12 +165,17 @@ n8n start
 ## 📊 Quick Diagnostic Queries
 
 ```sql
--- System Status
-SELECT 'emails' as table_name, COUNT(*) FROM emails
+-- Overall Health Check
+SELECT 
+    'emails' as metric, COUNT(*)::text as value FROM emails
 UNION ALL
-SELECT 'attachments', COUNT(*) FROM email_attachments
+SELECT 'attachments', COUNT(*)::text FROM email_attachments
 UNION ALL
-SELECT 'queue', COUNT(*) FROM processing_queue;
+SELECT 'categorized', COUNT(*)::text FROM email_attachments WHERE document_category IS NOT NULL
+UNION ALL
+SELECT 'pending_queue', COUNT(*)::text FROM processing_queue WHERE status = 'pending'
+UNION ALL
+SELECT 'contracts', COUNT(*)::text FROM contracts;
 
 -- Processing Queue Status
 SELECT file_type, status, COUNT(*) 
@@ -159,7 +188,17 @@ FROM email_attachments
 WHERE classification_timestamp > NOW() - INTERVAL '1 day'
 ORDER BY classification_timestamp DESC LIMIT 10;
 
--- Pending Items
+-- Recent Activity Check
+SELECT 
+    'last_email' as event, 
+    MAX(received_time)::text as timestamp 
+FROM emails
+UNION ALL
+SELECT 'last_categorization', MAX(classification_timestamp)::text FROM email_attachments
+UNION ALL
+SELECT 'last_queue_processing', MAX(processed_at)::text FROM processing_queue;
+
+-- Pending Items Summary
 SELECT 
   (SELECT COUNT(*) FROM email_attachments WHERE processing_status = 'pending') as pending_attachments,
   (SELECT COUNT(*) FROM processing_queue WHERE status = 'pending') as pending_queue,
@@ -168,19 +207,43 @@ SELECT
 
 ---
 
-## ⚠️ Known Issues (from 30 Oct 2025)
+## 📊 Current System Status (November 12, 2025)
+
+### Overall Progress: 45% Operational
+
+| Component | Status | Progress | Records |
+|-----------|--------|----------|---------|
+| Email Extraction | ✅ Working | 100% | 226 emails |
+| File Attachments | ✅ Working | 100% | 296 attachments |
+| AI Categorization | ⚠️ Partial | 34% | 102/296 categorized |
+| Processing Queue | ⚠️ Stalled | 61% | 130/213 completed |
+| Contract Detection | ❌ Not Started | 0% | 0 contracts |
+
+### 🎉 Documentation: 100% Complete!
+- **19/19 documents** completed (33,000+ lines)
+- All modules fully documented
+- Complete architecture, deployment, and troubleshooting guides
+
+---
+
+## ⚠️ Known Issues & Action Required
+
+### 🔥 CRITICAL (Must Do Immediately)
 
 1. **Queue Managers stopped** (28 Oct 09:40)
-   - No new processing since then
-   - Need restart
+   - 83 files pending in processing_queue
+   - No new AI categorization since stop
+   - **Action:** Restart text_queue_manager.py and image_queue_manager.py
 
-2. **AI Categorization stopped** (28 Oct 13:30)
-   - 122 completed files without categories
-   - n8n workflow may need restart
+2. **n8n Workflows Status Unknown**
+   - Need to verify if n8n server is running (localhost:5678)
+   - Check workflows: `INV_Text_CargoFlow`, `INV_PNG_CargoFlow`
+   - **Action:** Verify and restart if needed
 
-3. **contracts table empty**
-   - Folder organization not running
-   - Need to process `email_ready_queue`
+3. **Contract Processor Not Running**
+   - `contracts` table is empty (0 records)
+   - Folder organization not working
+   - **Action:** Start `python main.py --continuous` in Cargoflow_Contracts
 
 ---
 
@@ -205,14 +268,27 @@ python text_queue_manager.py  # or image_queue_manager.py
 
 ---
 
-## 📚 Full Documentation
+## 📚 Full Documentation (100% Complete!)
 
-For detailed information, see:
-- **[README.md](./README.md)** - Complete overview
-- **[SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)** - Architecture details
-- **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** - Database documentation
-- **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** - Current status
-- **[modules/](./modules/)** - Module-specific documentation
+**Total:** 19 documents, 33,000+ lines of documentation 🎉
+
+### Core Documentation (8/8 ✅)
+- **[README.md](./README.md)** - Complete overview (400+ lines)
+- **[SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)** - Architecture details (6000+ lines)
+- **[DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)** - Database documentation (650+ lines)
+- **[PROJECT_STATUS.md](./PROJECT_STATUS.md)** - Current status (800+ lines)
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - Deployment instructions (1200+ lines)
+- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions (1800+ lines)
+- **[MODULE_DEPENDENCIES.md](./MODULE_DEPENDENCIES.md)** - Module dependencies (13000+ lines)
+- **[STATUS_FLOW_MAP.md](./docs/STATUS_FLOW_MAP.md)** - Complete status flow (650+ lines)
+
+### Module Documentation (6/6 ✅)
+- **[01_EMAIL_FETCHER.md](./modules/01_EMAIL_FETCHER.md)** - Email extraction (700+ lines)
+- **[02_OCR_PROCESSOR.md](./modules/02_OCR_PROCESSOR.md)** - OCR processing (600+ lines)
+- **[03_OFFICE_PROCESSOR.md](./modules/03_OFFICE_PROCESSOR.md)** - Office processing (1000+ lines)
+- **[04_QUEUE_MANAGERS.md](./modules/04_QUEUE_MANAGERS.md)** - Queue management (1500+ lines)
+- **[05_N8N_WORKFLOWS.md](./modules/05_N8N_WORKFLOWS.md)** - n8n workflows (2000+ lines)
+- **[06_CONTRACTS_PROCESSOR.md](./modules/06_CONTRACTS_PROCESSOR.md)** - Contract processor (1000+ lines)
 
 ---
 
@@ -244,6 +320,28 @@ SELECT count(*) FROM pg_stat_activity WHERE datname = 'Cargo_mail';
 | Python | 3.11+ |
 | Main Email | pa@cargo-flow.fr |
 | Graph API | Microsoft 365 |
+
+---
+
+---
+
+## 🎯 Definition of "Fully Operational"
+
+System is considered fully operational when:
+
+**✅ Завършени (3/8):**
+- [x] ✅ Email extraction running continuously
+- [x] ✅ Attachments being saved to disk
+- [x] ✅ Complete documentation (19/19 documents)
+
+**⚠️ В процес / ❌ Не завършени (5/8):**
+- [ ] ⚠️ **80%+ of attachments categorized by AI** (Current: 34% - трябва 80%+)
+- [ ] ⚠️ **Queue processing active (pending < 20%)** (Current: 39% pending - трябва < 20%)
+- [ ] ❌ **Contract numbers extracted from documents** (не работи)
+- [ ] ❌ **Contracts table populated** (0 записа)
+- [ ] ❌ **Files organized into contract folders** (не работи)
+
+**Current Status:** 3/8 criteria met (37.5%)
 
 ---
 

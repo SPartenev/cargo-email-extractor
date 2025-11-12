@@ -1,7 +1,7 @@
 # n8n Workflows Documentation
 
 **n8n Server:** localhost:5678  
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Status:** ⚠️ Status unknown - needs verification
 
 ---
@@ -18,78 +18,124 @@ n8n/
 
 ## 🔄 Active Workflows
 
-### 1. Category_ALL_text (Text Analysis)
+### 1. Contract_Text_CargoFlow (Text Document Analysis)
 
-**Purpose:** AI categorization of text documents
+**Workflow File:** `Contract_Text_CargoFlow.json`  
+**Purpose:** AI categorization and data extraction from text documents
 
-**Trigger:** PostgreSQL NOTIFY on `n8n_channel_text`
+**Trigger:** PostgreSQL NOTIFY on `n8n_channel_contract_text`
 
 **Input:** Text files from OCR/Office processing
 - Location: `C:\CargoProcessing\processed_documents\2025\ocr_results\`
 - Format: `*_extracted.txt`
+- Source: `processing_queue` table where `file_type = 'text'`
 
-**Process:**
-1. Listen to PostgreSQL NOTIFY
-2. Read text file content
-3. Send to AI (OpenAI or Google Gemini)
-4. Parse AI response (category, confidence, contract_number)
-5. UPDATE email_attachments table
+**AI Model:** OpenAI GPT-4o-mini-2024-07-18
+
+**Process Flow:**
+1. **PostgreSQL Trigger** → Listens on `n8n_channel_contract_text`
+2. **Switch Node** → Routes based on file extension (.txt vs .png)
+3. **Read File** → Loads text content from file system
+4. **AI Category Agent** → Analyzes document and extracts:
+   - Document category (13 types)
+   - Confidence score
+   - Contract number (patterns: 50XXXXXXXXX, 20XXXXXXXXX)
+   - Document grouping information
+   - Page numbering
+5. **Code Parser** → Parses AI JSON response, handles markdown cleanup
+6. **Update email_attachments** → Updates with category, confidence, contract_number
+7. **Insert document_pages** → Creates page-level records for multi-page documents
+8. **Invoice Extraction** (if category = 'invoice'):
+   - **Information Extractor** → Extracts structured invoice data
+   - **Format Dates** → Converts DD/MM/YYYY to YYYY-MM-DD
+   - **Insert invoice_base** → Saves invoice details
 
 **AI Categories (13):**
-- contract, contract_amendment, contract_termination, contract_extension
-- service_agreement, framework_agreement, cmr, protocol, annex
-- insurance, invoice, credit_note, other
+- contract — договор
+- contract_amendment — изменение на договор
+- contract_termination — прекратяване на договор
+- contract_extension — продължаване на договор
+- service_agreement — споразумение за услуги
+- framework_agreement — рамково споразумение
+- cmr — CMR (международен товарителски документ)
+- protocol — протокол
+- annex — анекс
+- insurance — застраховка
+- invoice — фактура
+- credit_note — кредитно известие
+- other — друго
 
-**Output:** Updates database with:
-- `document_category`
-- `confidence_score`
-- `contract_number`
-- `classification_timestamp`
+**Database Updates:**
+- `email_attachments`: `document_category`, `confidence_score`, `contract_number`, `classification_timestamp`, `total_pages`
+- `document_pages`: Individual page records with category, confidence, contract_number
+- `invoice_base`: Invoice details (if invoice category detected)
 
-**Webhook:** `http://localhost:5678/webhook/analyze-text`
+**Contract Number Extraction:**
+- Searches for patterns: `50XXXXXXXXX`, `20XXXXXXXXX` (10-11 digits)
+- Looks for prefixes: "Договор №", "Contract No.", "№", "No."
+- Extracts full contract number including prefixes/suffixes
 
 ---
 
-### 2. Read_PNG_ (Image Analysis)
+### 2. Contract_PNG_ CargoFlow (Image/Page Analysis)
 
-**Purpose:** AI categorization of PNG images
+**Workflow File:** `Contract_PNG_ CargoFlow.json`  
+**Purpose:** AI categorization of individual PNG pages from multi-page documents
 
-**Trigger:** PostgreSQL NOTIFY on `n8n_channel_image_ready`
+**Trigger:** PostgreSQL NOTIFY on `n8n_channel_contract_png` (or similar)
 
 **Input:** PNG images from OCR processing
 - Location: `C:\CargoProcessing\processed_documents\2025\images\`
 - Format: `*.png`
+- Source: `processing_queue` table where `file_type = 'image'` and `group_processing_status = 'ready_for_group'`
 
-**Process:**
-1. Listen to PostgreSQL NOTIFY
-2. Read image file (base64)
-3. Send to AI with vision capabilities
-4. Parse AI response
-5. UPDATE email_attachments table
+**AI Model:** Google Gemini (gemini-pro) with vision capabilities
 
-**Output:** Same as text workflow + image analysis
+**Process Flow:**
+1. **PostgreSQL Trigger** → Listens for image processing notifications
+2. **Execute SQL Query** → Fetches all PNG pages for the same document:
+   ```sql
+   SELECT id, file_path, email_id, attachment_id, 
+          file_metadata->>'page_number' as page_number,
+          file_metadata->>'total_pages' as total_pages
+   FROM processing_queue
+   WHERE original_document = '{original_document}'
+     AND attachment_id = {attachment_id}
+     AND file_type = 'image'
+     AND group_processing_status = 'ready_for_group'
+   ORDER BY (file_metadata->>'page_number')::int
+   ```
+3. **Read All Files** → Loads all PNG files for the document
+4. **Aggregate** → Combines all pages into single input
+5. **AI Category Agent** → Analyzes EACH PAGE separately:
+   - Returns array with one object per page
+   - Each page gets its own category
+   - Contract number extraction per page
+6. **Code Parser** → Parses AI response array, maps to page structure
+7. **If Invoice** → Conditional branch for invoice extraction
+8. **Invoice Extraction** (if any page = 'invoice'):
+   - **Information Extractor** → Extracts structured invoice data
+   - **Format Dates** → Converts dates
+   - **Insert invoice_base** → Saves invoice details
+9. **Update email_attachments** → Updates main attachment record
+10. **Insert document_pages** → Creates individual page records with:
+    - `attachment_id`
+    - `page_number`
+    - `category` (per page)
+    - `confidence_score`
+    - `contract_number`
+    - `summary`
 
-**Webhook:** `http://localhost:5678/webhook/analyze-image`
+**Key Features:**
+- **Page-by-Page Analysis:** Each PNG page analyzed individually
+- **Multi-Category Support:** Different pages can have different categories
+- **Group Processing:** All pages from same document processed together
+- **Contract Number per Page:** Each page can have its own contract number
 
----
-
-### 3. INV_Text_CargoFlow (Invoice Extraction)
-
-**Purpose:** Extract invoice data from classified invoices
-
-**Trigger:** When `document_category = 'invoice'`
-
-**Process:**
-1. Extract invoice fields:
-   - invoice_number
-   - vendor_name
-   - total_amount
-   - invoice_date
-   - line_items[]
-2. INSERT INTO invoice_base
-3. INSERT INTO invoice_items
-
-**Output:** Structured invoice data in database
+**Database Updates:**
+- `email_attachments`: Main document category (from first page or most common)
+- `document_pages`: Individual page records (one per PNG)
+- `invoice_base`: Invoice details (if invoice pages detected)
 
 ---
 
@@ -112,23 +158,17 @@ n8n/
 
 ### AI Model Settings
 
-**Option 1: OpenAI**
-```javascript
-{
-  "model": "gpt-4o",
-  "temperature": 0.1,
-  "max_tokens": 1000
-}
-```
+**Contract_Text_CargoFlow:**
+- **Model:** OpenAI GPT-4o-mini-2024-07-18
+- **Temperature:** Default (typically 0.1-0.3)
+- **Max Tokens:** Default
+- **Purpose:** Text document categorization and contract number extraction
 
-**Option 2: Google Gemini**
-```javascript
-{
-  "model": "gemini-pro",
-  "temperature": 0.1,
-  "maxOutputTokens": 1000
-}
-```
+**Contract_PNG_ CargoFlow:**
+- **Model:** Google Gemini (gemini-pro)
+- **Max Output Tokens:** 32768
+- **Purpose:** Image/vision analysis for PNG pages
+- **Capabilities:** Multi-page document analysis, per-page categorization
 
 ### Rate Limiting
 
@@ -148,15 +188,17 @@ n8n/
 
 **Text Processing:**
 ```sql
--- Trigger function
+-- Trigger function (actual implementation)
 CREATE FUNCTION notify_n8n_text_queue()
 RETURNS trigger AS $$
 BEGIN
-  PERFORM pg_notify('n8n_channel_text', 
+  PERFORM pg_notify('n8n_channel_contract_text', 
     json_build_object(
       'file_path', NEW.file_path,
       'attachment_id', NEW.attachment_id,
-      'email_id', NEW.email_id
+      'email_id', NEW.email_id,
+      'original_document', NEW.original_document,
+      'file_metadata', NEW.file_metadata
     )::text
   );
   RETURN NEW;
@@ -174,8 +216,23 @@ EXECUTE FUNCTION notify_n8n_text_queue();
 **Image Processing:**
 ```sql
 -- Similar structure for images
+-- Channel: n8n_channel_contract_png (or similar)
+-- Triggered when group_processing_status = 'ready_for_group'
 CREATE FUNCTION notify_n8n_image_queue()
--- Trigger on n8n_channel_image_ready
+RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('n8n_channel_contract_png', 
+    json_build_object(
+      'file_path', NEW.file_path,
+      'attachment_id', NEW.attachment_id,
+      'email_id', NEW.email_id,
+      'original_document', NEW.original_document,
+      'file_metadata', NEW.file_metadata
+    )::text
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
 ---
@@ -200,11 +257,20 @@ docker run -it --rm \
 
 1. Access n8n: `http://localhost:5678`
 2. Navigate to **Workflows** → **Import from File**
-3. Import JSON files from `workflows/` folder
+3. Import JSON files from `Cargoflow_n8n/` folder:
+   - `Contract_Text_CargoFlow.json`
+   - `Contract_PNG_ CargoFlow.json`
 4. Configure credentials:
-   - OpenAI API key (or Google Gemini)
-   - PostgreSQL connection
-5. Activate workflows
+   - **OpenAI API** (for Contract_Text_CargoFlow)
+     - Credential name: "OpenAi account"
+     - Model: gpt-4o-mini-2024-07-18
+   - **Google Gemini API** (for Contract_PNG_ CargoFlow)
+     - Credential name: "Invoice_Email" or "Teka" or "Gemini(PaLM) Api 1"
+     - Model: gemini-pro
+   - **PostgreSQL** (for both workflows)
+     - Credential name: "Cargo_mail"
+     - Database: Cargo_mail
+5. Activate workflows (toggle switch in n8n UI)
 
 ### 3. Configure PostgreSQL Connection
 
@@ -222,25 +288,44 @@ docker run -it --rm \
 
 ### 4. Configure AI API
 
-**For OpenAI:**
+**For OpenAI (Contract_Text_CargoFlow):**
 1. Get API key from https://platform.openai.com
-2. Add credential in n8n
-3. Select model: gpt-4o
+2. In n8n: **Credentials** → **New** → **OpenAI API**
+3. Enter API key
+4. Credential name: "OpenAi account"
+5. Model used: `gpt-4o-mini-2024-07-18`
 
-**For Google Gemini:**
-1. Get API key from Google AI Studio
-2. Add credential in n8n
-3. Select model: gemini-pro
+**For Google Gemini (Contract_PNG_ CargoFlow):**
+1. Get API key from Google AI Studio (https://aistudio.google.com/)
+2. In n8n: **Credentials** → **New** → **Google Gemini API**
+3. Enter API key
+4. Credential name: "Invoice_Email" or "Teka" or "Gemini(PaLM) Api 1"
+5. Model used: `gemini-pro`
+6. Max Output Tokens: 32768
 
 ### 5. Test Workflows
 
-```bash
-# Test text webhook
-curl -X POST http://localhost:5678/webhook/analyze-text
+**Note:** These workflows use PostgreSQL NOTIFY/LISTEN, not webhooks.
 
-# Test image webhook
-curl -X POST http://localhost:5678/webhook/analyze-image
+**Test PostgreSQL Trigger:**
+```sql
+-- Test text channel
+LISTEN n8n_channel_contract_text;
+SELECT pg_notify('n8n_channel_contract_text', 
+  '{"file_path": "test.txt", "attachment_id": 1, "email_id": 1, "original_document": "test.pdf"}'
+);
+
+-- Test image channel
+LISTEN n8n_channel_contract_png;
+SELECT pg_notify('n8n_channel_contract_png', 
+  '{"file_path": "test.png", "attachment_id": 1, "email_id": 1, "original_document": "test.pdf"}'
+);
 ```
+
+**Check Workflow Execution:**
+1. In n8n UI, open workflow
+2. Check **Executions** tab
+3. Verify successful runs
 
 ---
 
@@ -268,11 +353,17 @@ curl -X POST http://localhost:5678/webhook/analyze-image
 psql -U postgres -d Cargo_mail
 
 # In psql:
-LISTEN n8n_channel_text;
+LISTEN n8n_channel_contract_text;
 -- Should see: Asynchronous notification received
 
 # Test manually:
-SELECT pg_notify('n8n_channel_text', '{"test": "data"}');
+SELECT pg_notify('n8n_channel_contract_text', 
+  '{"file_path": "test.txt", "attachment_id": 1, "email_id": 1, "original_document": "test.pdf"}'
+);
+
+# Check if processing_queue has pending items
+SELECT COUNT(*) FROM processing_queue 
+WHERE status = 'pending' AND file_type = 'text';
 ```
 
 **Issue 2: AI API errors**
@@ -306,6 +397,7 @@ SELECT
     attachment_name,
     document_category,
     confidence_score,
+    contract_number,
     classification_timestamp
 FROM email_attachments
 WHERE classification_timestamp > NOW() - INTERVAL '24 hours'
@@ -321,6 +413,32 @@ FROM email_attachments
 WHERE document_category IS NOT NULL
 GROUP BY document_category
 ORDER BY count DESC;
+
+-- Document pages analysis (multi-page documents)
+SELECT 
+    dp.attachment_id,
+    ea.attachment_name,
+    dp.page_number,
+    dp.category,
+    dp.contract_number,
+    dp.confidence_score
+FROM document_pages dp
+JOIN email_attachments ea ON dp.attachment_id = ea.id
+ORDER BY dp.attachment_id, dp.page_number
+LIMIT 50;
+
+-- Invoice extraction status
+SELECT 
+    ib.invoice_number,
+    ib.supplier_name,
+    ib.total_amount,
+    ib.currency,
+    ea.attachment_name
+FROM invoice_base ib
+JOIN email_attachments ea ON ib.email_id = ea.email_id
+WHERE ib.invoice_number IS NOT NULL
+ORDER BY ib.created_at DESC
+LIMIT 20;
 ```
 
 ---
@@ -331,9 +449,13 @@ ORDER BY count DESC;
 
 **In n8n UI:**
 1. Open workflow
-2. Click **⋮** (three dots)
-3. Select **Download**
-4. Save to `workflows/` folder
+2. Click **⋮** (three dots) → **Download**
+3. Save to `Cargoflow_n8n/` folder
+4. Also backup to `Documentation/n8n/workflows/` folder
+
+**Current Workflow Files:**
+- `Cargoflow_n8n/Contract_Text_CargoFlow.json`
+- `Cargoflow_n8n/Contract_PNG_ CargoFlow.json`
 
 ### Backup Workflows
 
@@ -371,6 +493,21 @@ cp ~/.n8n/workflows.json workflows/backup_$(date +%Y%m%d).json
 - Last AI categorization: 28 Oct 13:30
 - Need to verify n8n status
 
+### Workflow-Specific Notes
+
+**Contract_Text_CargoFlow:**
+- Processes text files (.txt) from OCR/Office extraction
+- Single document analysis (not split by pages)
+- Creates one `document_pages` record per text file
+- Invoice extraction integrated in same workflow
+
+**Contract_PNG_ CargoFlow:**
+- Processes PNG images (pages from multi-page documents)
+- Groups pages by `original_document` and `attachment_id`
+- Analyzes each page separately
+- Creates multiple `document_pages` records (one per PNG)
+- Supports different categories per page (e.g., invoice + CMR in same document)
+
 ---
 
 ## 🔄 Next Steps
@@ -382,5 +519,5 @@ cp ~/.n8n/workflows.json workflows/backup_$(date +%Y%m%d).json
 
 ---
 
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Status:** Documentation complete - n8n status verification needed

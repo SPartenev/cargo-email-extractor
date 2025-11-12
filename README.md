@@ -2,7 +2,7 @@
 
 **Version:** 2.0  
 **Status:** Production Ready ✅  
-**Last Updated:** November 05, 2025
+**Last Updated:** November 12, 2025
 
 ---
 
@@ -18,6 +18,13 @@ CargoFlow is an intelligent, end-to-end automated system for processing business
 - **Contract Detection**: Automatic contract number extraction and organization
 - **Queue Management**: Rate-limited processing with retry mechanisms
 - **Database Integration**: Complete PostgreSQL tracking with triggers and functions
+
+### Recent Enhancements (November 12, 2025)
+
+- **Smart Invoice Naming**: Invoices automatically named as `invoice_{number}_{supplier}.pdf` using data from `invoice_base` table
+- **Multi-Page Document Splitting**: Combined documents (e.g., invoice + CMR) automatically split into separate PDF files by category
+- **Category Prefix Naming**: All files prefixed with document category for quick identification
+- **Page Orientation Correction**: Automatic EXIF orientation correction and 180° rotation for inverted pages
 
 ---
 
@@ -313,5 +320,5 @@ Internal project for Cargo Flow company.
 ---
 
 **🚀 System Status:** Production Ready  
-**📅 Last Updated:** November 05, 2025  
+**📅 Last Updated:** November 12, 2025  
 **👨‍💻 Maintained by:** CargoFlow DevOps Team

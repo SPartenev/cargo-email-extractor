@@ -919,6 +919,145 @@
           "name": "OpenAi account"
         }
       }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_pages",
+          "mode": "list",
+          "cachedResultName": "document_pages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "attachment_id": "={{ $json.id }}",
+            "page_number": "={{ $('Code in JavaScript').item.json.page_number }}",
+            "confidence_score": "={{ $json.confidence_score }}",
+            "category": "={{ $json.document_category }}",
+            "summary": "={{ $json.classification_summary }}",
+            "contract_number": "={{ $json.contract_number }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "attachment_id",
+              "displayName": "attachment_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "page_number",
+              "displayName": "page_number",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "confidence_score",
+              "displayName": "confidence_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number",
+              "displayName": "contract_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contract_number_confidence",
+              "displayName": "contract_number_confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        672,
+        48
+      ],
+      "id": "b0a44c12-2c49-40b7-ab37-4542ef5f7bf3",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "postgres": {
+          "id": "mEpKywGrjpOJXTkr",
+          "name": "Cargo_mail"
+        }
+      }
     }
   ],
   "pinData": {
@@ -993,7 +1132,13 @@
     },
     "Update rows in a table": {
       "main": [
-        []
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Code in JavaScript": {
@@ -1118,7 +1263,7 @@
     "timezone": "Europe/Sofia",
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "54e24875-1665-48a1-b29a-863ad52d91cc",
+  "versionId": "760ff928-856b-4493-acdf-fb0ead4c8f92",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6a91fd66b829680413e756bca7a872f2f4980a35d99abe1eee7fd95b88570135"

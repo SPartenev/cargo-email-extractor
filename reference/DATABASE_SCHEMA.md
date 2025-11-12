@@ -4,7 +4,7 @@
 **Engine:** PostgreSQL 17  
 **Server:** localhost:5432  
 **Total Tables:** 19  
-**Last Updated:** November 05, 2025
+**Last Updated:** November 12, 2025
 
 ---
 
@@ -207,6 +207,12 @@
 - Allows different pages in a PDF to have different categories
 - Example: Page 1 = invoice, Page 2-3 = CMR
 - Enables better document organization
+
+**Usage:**
+- Used by **both** text and image workflows (INV_Text_CargoFlow.json and Contract_PNG_ CargoFlow.json)
+- All document types (text and image) are recorded in this table after AI classification
+- Each page of a multi-page document gets its own record with page_number = 1, 2, 3, etc.
+- Single-page documents also get a record with page_number = 1
 
 ---
 
@@ -536,6 +542,6 @@ WHERE NOT blocked_locks.granted;
 
 ---
 
-**Last Updated:** November 05, 2025  
+**Last Updated:** November 12, 2025  
 **Database Version:** PostgreSQL 17  
 **Schema Version:** 2.0

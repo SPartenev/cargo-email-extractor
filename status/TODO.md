@@ -1,6 +1,6 @@
 # CargoFlow - TODO & Known Issues
 
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Priority System:** 🔥 Critical | ⚠️ High | ℹ️ Medium | 📌 Low
 
 ---
@@ -539,18 +539,18 @@ LIMIT 10;
 ## 📌 LOW PRIORITY (Future Enhancements)
 
 ### 11. Implement Contract Folder Reassembly
-**Status:** 💡 Idea  
+**Status:** ✅ **COMPLETED** (November 12, 2025)  
 **Priority:** 📌 LOW
 
-**Concept:**
-- Multi-page documents split by page category
-- Example: Invoice (page 1) + CMR (pages 2-3)
-- Reassemble into separate files per category
-- Group by `document_pages.category`
+**Implementation:**
+- ✅ Multi-page documents split by page category
+- ✅ PNG pages grouped by category from `document_pages` table
+- ✅ Separate PDF files created for each category group
+- ✅ Example: 7-page document → `other_50251007351.pdf` (5 pages) + `protocol_50251007351.pdf` (2 pages)
+- ✅ Text files remain as single documents (not split)
+- ✅ Automatic page orientation correction (EXIF + 180° rotation)
 
-**Benefit:**
-- Better organization
-- Easier to find specific document types
+**Location:** `Cargoflow_Contracts/services/file_organizer.py` - `_process_png_pages_by_category()` method
 
 ---
 
@@ -788,7 +788,7 @@ LIMIT 20;
 
 ---
 
-**Last Updated:** November 06, 2025  
+**Last Updated:** November 12, 2025  
 **Next Review:** After queue managers and contract processor restart
 
 ---
